@@ -9,146 +9,162 @@ import (
 	"time"
 )
 
-func init(){
+func init() {
 	log.SetPrefix("Blockchain: ")
 }
 
-
 type Block struct {
-	nounce int
-	previousHash [32]byte
-	timestamp int64
-	transactions []*Transactions
+	PreviousHash [32]byte
+	Timestamp    int64
+	Transactions []*Transactions
+	MerkleRoot   [32]byte
 }
 
-func NewBlock(nounce int, previousHash [32]byte, transactions []*Transactions) *Block{ //NewBlock function to create a new block
-	
+func NewBlock(previousHash [32]byte, transactions []*Transactions) *Block {
 	b := new(Block)
-	b.timestamp= time.Now().UnixNano()
-	b.nounce=nounce
-	b.previousHash=previousHash
-	b.transactions=transactions
+	b.Timestamp = time.Now().UnixNano()
+	b.PreviousHash = previousHash
+	b.Transactions = transactions
+	b.MerkleRoot = CalculateMerkleRoot(transactions)
 	return b
-	
 }
 
-func (b *Block) Print(){ //Print function to print the block
-	fmt.Printf("timestamp        %d\n", b.timestamp)	
-	fmt.Printf("nounce           %d\n", b.nounce)	
-	fmt.Printf("previous_hash    %x\n", b.previousHash)	
-	// fmt.Printf("transactions     %s\n", b.transactions)
-	for _,t :=range b.transactions{
+func (b *Block) Print() {
+	fmt.Printf("Timestamp:       %d\n", b.Timestamp)
+	fmt.Printf("Previous Hash:   %x\n", b.PreviousHash)
+	fmt.Printf("Merkle Root:     %x\n", b.MerkleRoot)
+	for _, t := range b.Transactions {
 		t.Print()
 	}
 }
 
-func (b *Block) Hash() [32]byte{
-	m,_ :=json.Marshal(b) //Marshal is used to convert struct to json
+func (b *Block) Hash() [32]byte {
+	m, _ := json.Marshal(b)
 	fmt.Println(string(m))
-	return sha256.Sum256([]byte(m))
+	return sha256.Sum256(m)
 }
 
-func (b *Block) MarshalJSON() ([]byte,error){ //CUsotm Marshal function so as to show the json in a better way
-	return json.Marshal(struct{
-		Timestamp int64 			`json:"timestamp"`
-		Nounce int 					`json:"nounce"`
-		PreviousHash [32]byte 		`json:"previous_hash"`
+func (b *Block) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Timestamp    int64          `json:"timestamp"`
+		PreviousHash [32]byte       `json:"previous_hash"`
+		MerkleRoot   [32]byte       `json:"merkle_root"`
 		Transactions []*Transactions `json:"transactions"`
 	}{
-		Timestamp: b.timestamp,
-		Nounce: b.nounce,
-		PreviousHash: b.previousHash,
-		Transactions: b.transactions,
+		Timestamp:    b.Timestamp,
+		PreviousHash: b.PreviousHash,
+		MerkleRoot:   b.MerkleRoot,
+		Transactions: b.Transactions,
 	})
 }
 
-type Blockchain struct{ //Blockchain struct
-	transactionPool []*Transactions
-	chain 			[]*Block
+type Blockchain struct {
+	TransactionPool []*Transactions
+	Chain           []*Block
 }
 
-func NewBlockchain() *Blockchain{ //NewBlockchain function to create a new blockchain
-	b:=&Block{}
+func NewBlockchain() *Blockchain {
+	b := &Block{}
 	bc := new(Blockchain)
-	bc.CreateBlock(0, b.Hash()) //Geneisi block
+	bc.CreateBlock(b.Hash()) // Genesis block
 	return bc
 }
 
-func (bc *Blockchain) LastBlock() *Block{ //LastBlock function to get the last block
-	return bc.chain[len(bc.chain)-1]
+func (bc *Blockchain) LastBlock() *Block {
+	return bc.Chain[len(bc.Chain)-1]
 }
 
-func(bc *Blockchain) AddTransaction(sender string, receipient string, value float32){ //AddTransaction function to add a transaction to the blockchain
-	t := NewTransaction(sender,receipient,value)
-	bc.transactionPool = append(bc.transactionPool,t)
+func (bc *Blockchain) AddTransaction(sender string, recipient string, value float32) {
+	t := NewTransaction(sender, recipient, value)
+	bc.TransactionPool = append(bc.TransactionPool, t)
 }
 
-
-
-type Transactions struct{
-	senderBlockChainAddress string
-	receipientBlockChainAddress string
-	value 						float32
-
+type Transactions struct {
+	SenderBlockchainAddress    string
+	RecipientBlockchainAddress string
+	Value                      float32
 }
 
-func NewTransaction(sender string, receipient string, value float32) *Transactions{
-	return &Transactions{sender,receipient,value}
+func NewTransaction(sender string, recipient string, value float32) *Transactions {
+	return &Transactions{SenderBlockchainAddress: sender, RecipientBlockchainAddress: recipient, Value: value}
 }
 
 func (t *Transactions) Print() {
-	fmt.Printf("%s\n", strings.Repeat("-", 60))
-	fmt.Printf("Sender Blockchain Address:    %s\n", t.senderBlockChainAddress)
-	fmt.Printf("Recipient Blockchain Address: %s\n", t.receipientBlockChainAddress)
-	fmt.Printf("Value:                        %.1f\n", t.value)
+	fmt.Printf("%s\n", strings.Repeat("-", 40))
+	fmt.Printf("Sender Blockchain Address:    %s\n", t.SenderBlockchainAddress)
+	fmt.Printf("Recipient Blockchain Address: %s\n", t.RecipientBlockchainAddress)
+	fmt.Printf("Value:                        %.1f\n", t.Value)
 }
 
-
-func (t *Transactions) MarshalJSON() ([]byte,error){
-	return json.Marshal(struct{
-		Sender string 		`json:"sender_blockchainaddress"`
-		Receipient string 	`json:"receipient_blockchainaddress"`
-		Value float32 		`json:"value"`
+func (t *Transactions) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Sender    string  `json:"sender_blockchainaddress"`
+		Recipient string  `json:"recipient_blockchainaddress"`
+		Value     float32 `json:"value"`
 	}{
-		Sender: 	t.senderBlockChainAddress,
-		Receipient: t.receipientBlockChainAddress,
-		Value: 		t.value,
+		Sender:    t.SenderBlockchainAddress,
+		Recipient: t.RecipientBlockchainAddress,
+		Value:     t.Value,
 	})
 }
 
-
-func (bc *Blockchain) Print(){ //Print function to print the blockchain
-	for i,block := range bc.chain{
-		fmt.Printf("%s Chain %d %s \n", strings.Repeat("=",25),i,
-		strings.Repeat("=",25))
+func (bc *Blockchain) Print() {
+	for i, block := range bc.Chain {
+		fmt.Printf("%s Chain %d %s\n", strings.Repeat("=", 25), i, strings.Repeat("=", 25))
 		block.Print()
 	}
-	fmt.Printf("%s\n", strings.Repeat("*",25))
+	fmt.Printf("%s\n", strings.Repeat("*", 25))
 }
 
-func (bc *Blockchain) CreateBlock(nounce int,previousHash [32]byte) *Block{
-	b := NewBlock(nounce,previousHash,bc.transactionPool)
-	bc.chain = append(bc.chain,b)
-	bc.transactionPool = []*Transactions{}
+func (bc *Blockchain) CreateBlock(previousHash [32]byte) *Block {
+	b := NewBlock(previousHash, bc.TransactionPool)
+	bc.Chain = append(bc.Chain, b)
+	bc.TransactionPool = []*Transactions{}
 	return b
 }
 
-func main(){
+func CalculateMerkleRoot(transactions []*Transactions) [32]byte {
+	if len(transactions) == 0 {
+		return [32]byte{}
+	}
 
+	hashes := make([][32]byte, len(transactions))
+	for i, t := range transactions {
+		hashes[i] = t.Hash()
+	}
 
+	for len(hashes) > 1 {
+		if len(hashes)%2 != 0 {
+			hashes = append(hashes, hashes[len(hashes)-1])
+		}
+
+		newLevel := make([][32]byte, 0)
+		for i := 0; i < len(hashes); i += 2 {
+			h := sha256.Sum256(append(hashes[i][:], hashes[i+1][:]...))
+			newLevel = append(newLevel, h)
+		}
+		hashes = newLevel
+	}
+
+	return hashes[0]
+}
+
+func (t *Transactions) Hash() [32]byte {
+	m, _ := json.Marshal(t)
+	return sha256.Sum256(m)
+}
+
+func main() {
 	blockchain := NewBlockchain()
 	blockchain.Print()
- 
-	blockchain.AddTransaction("A","B",1.0)
-	previousHash:=blockchain.LastBlock().Hash()
-	blockchain.CreateBlock(5,previousHash)
+
+	blockchain.AddTransaction("A", "B", 1.0)
+	previousHash := blockchain.LastBlock().Hash()
+	blockchain.CreateBlock(previousHash)
 	blockchain.Print()
 
-	blockchain.AddTransaction("X","Y",2.0)
-	blockchain.AddTransaction("P","Q",3.0)
-	previousHash=blockchain.LastBlock().Hash()
-	blockchain.CreateBlock(2,previousHash)
+	blockchain.AddTransaction("C", "D", 2.0)
+	previousHash = blockchain.LastBlock().Hash()
+	blockchain.CreateBlock(previousHash)
 	blockchain.Print()
-
-
 }
